@@ -1,0 +1,4 @@
+# Ignore everything in testdata (data is not under unknown license)
+*
+# Except .gitignore
+!.gitignore
