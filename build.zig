@@ -17,8 +17,8 @@ pub fn build(b: *std.build.Builder) void {
     exe.setTarget(target);
     exe.setBuildMode(mode);
 
-    // zlib.linkStep(exe);
-    exe.addPackagePath("c_zlib", "deps/raw-zlib-wrapper/src/c.zig");
+    zlib.linkStep(b, exe);
+    exe.addPackagePath("zlib", "deps/raw-zlib-wrapper/src/main.zig");
 
     exe.install();
 

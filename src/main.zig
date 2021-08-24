@@ -1,6 +1,6 @@
 const std = @import("std");
 const clap = @import("clap");
-const c_zlib = @import("c_zlib");
+const zlib = @import("zlib");
 
 const Allocator = std.mem.Allocator;
 
@@ -121,7 +121,8 @@ const WorkContext = struct {
 
 /// Opens a warc.gz file and removes port number from any IP in the WARC-IP-Address header
 fn fixWarcIP(ctx: WorkContext) void {
-    var file_buffer: [1024]u8 = undefined;
+    var file_read_buffer: [2048]u8 = undefined;
+    var file_write_buffer: [4096]u8 = undefined;
     // TODO: diag.report(std_err, ...)
     for (ctx.paths) |path| {
         var destination_file = blk: {
@@ -163,15 +164,16 @@ fn fixWarcIP(ctx: WorkContext) void {
             };
             defer gzip_stream.deinit();
             var bytes_read: usize = 1;
+        
             while (bytes_read > 0) {
-                bytes_read = gzip_stream.read(file_buffer[0..]) catch |err| {
+                bytes_read = gzip_stream.read(file_read_buffer[0..]) catch |err| {
                     ctx.std_err.print("failed to read gzip stream at {d}, err: {any}", .{gzip_stream.read_amt, err}) catch {};
                     return;
                 };
         
                 const needle = "WARC-IP-Address: ";
                 var needle_search_start: usize = 0;
-                header_search: while (std.mem.indexOf(u8, file_buffer[needle_search_start..bytes_read], needle)) |index| {
+                header_search: while (std.mem.indexOf(u8, file_read_buffer[needle_search_start..bytes_read], needle)) |index| {
                     if (index == 0) {
                         break :header_search;
                     }
@@ -185,22 +187,29 @@ fn fixWarcIP(ctx: WorkContext) void {
                     // skip "WARC-IP-Address: "
                     const port_start_index = index + needle.len;
                     var i: usize = 0;
-                    port_search: while(file_buffer[port_start_index+i] != '\n' and file_buffer[port_start_index+i] != '\r') : (i += 1) {
-                        if (file_buffer[port_start_index+i] == ':') {
+                    port_search: while(file_read_buffer[port_start_index+i] != '\n' and file_read_buffer[port_start_index+i] != '\r') : (i += 1) {
+                        if (file_read_buffer[port_start_index+i] == ':') {
                             state = SearchState.Port;
                             break :port_search;
                         }
                     }
                     // replace port in buffer to whitespace if it exist
                     if (state == SearchState.Port) {
-                        while(file_buffer[port_start_index+i] != '\n' and file_buffer[port_start_index+i] != '\r') : (i += 1) {
-                            file_buffer[port_start_index+i] = ' ';
+                        while(file_read_buffer[port_start_index+i] != '\n' and file_read_buffer[port_start_index+i] != '\r') : (i += 1) {
+                            file_read_buffer[port_start_index+i] = ' ';
                         } 
                     } 
                     needle_search_start = port_start_index + i + 1;
                 }
+
+                // TODO: bug: file_read_buffer needs to hold a full record
+                const bytes_compressed = zlib.compressGzip(file_read_buffer[0..bytes_read], file_write_buffer[0..]) catch |err| {
+                    ctx.std_err.print("failed to compress, err: {any}", .{err}) catch {};
+                    return;
+                };
+
                 // Write to the new file with the corrected buffer
-                const bytes_written = destination_file.pwrite(file_buffer[0..bytes_read], desintation_file_pos) catch |err| {
+                const bytes_written = destination_file.pwrite(file_write_buffer[0..bytes_compressed], desintation_file_pos) catch |err| {
                     ctx.std_err.print("failed to write to destination file at {d}, err: {any}", .{desintation_file_pos, err}) catch {};
                     return;
                 };

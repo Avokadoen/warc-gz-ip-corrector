@@ -1,9 +1,15 @@
 const std = @import("std");
 
 /// Link a step with zlib statically
-pub fn linkStep(step: *std.build.LibExeObjStep) void {
-    const sources = [_][]const u8{
-        // Windows-specific sources
+pub fn linkStep(b: *std.build.Builder, step: *std.build.LibExeObjStep) void {
+    step.linkLibC();
+
+    const this_dir = std.fs.path.dirname(@src().file) orelse ".";
+    var include_dir = std.fs.path.join(b.allocator, &.{ this_dir, "deps/zlib-1.2.11" }) catch unreachable;
+    step.addIncludeDir(include_dir);
+
+    var sources = std.ArrayList([]const u8).init(b.allocator);
+    for([_][]const u8{
         "deps/zlib-1.2.11/inftrees.c",
         "deps/zlib-1.2.11/inflate.c",
         "deps/zlib-1.2.11/adler32.c",
@@ -19,6 +25,9 @@ pub fn linkStep(step: *std.build.LibExeObjStep) void {
         "deps/zlib-1.2.11/gzlib.c",
         "deps/zlib-1.2.11/uncompr.c",
         "deps/zlib-1.2.11/inffast.c",
-    };
-    step.addCSourceFiles(sources[0..], &.{});
+    }) |path| {
+        var abs_path = std.fs.path.join(b.allocator, &.{ this_dir, path }) catch unreachable;
+        sources.append(abs_path) catch unreachable;
+    }
+    step.addCSourceFiles(sources.items, &.{ });
 }
