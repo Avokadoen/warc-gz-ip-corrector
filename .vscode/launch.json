@@ -9,7 +9,7 @@
             "type": "cppvsdbg",
             "request": "launch",
             "program": "${workspaceFolder}/zig-out/bin/warc-ip-correcter.exe",
-            "args": ["-p=./statlige_2021-20210804090002-veidemann_contentwriter_774dc8d669_2grcf-00343.warc.gz"],
+            "args": ["-p=${workspaceFolder}/testdata/file.warc.gz", "-f=${workspaceFolder}/testdata/fixed_files"],
             "stopAtEntry": false,
             "cwd": "${fileDirname}",
             "environment": [],
