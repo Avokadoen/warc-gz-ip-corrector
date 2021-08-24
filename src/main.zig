@@ -55,16 +55,17 @@ pub fn main() anyerror!void {
     };
 
     // Use allocator capable of detecting memory leaks in debug
-    var alloc_api = if(std.builtin.mode == .Debug) std.heap.GeneralPurposeAllocator(.{}){} else std.heap.c_allocator;
+    const is_debug = std.builtin.mode == .Debug;
+    var alloc_api = if(is_debug) std.heap.GeneralPurposeAllocator(.{}){} else std.heap.c_allocator;
     defer {
-        if(std.builtin.mode == .Debug) {
+        if(is_debug) {
             const leak = alloc_api.deinit();
             if (leak) {
                 std_err.print("leak detected in gpa!", .{}) catch unreachable;
             }
         }
     }
-    var allocator = if(std.builtin.mode == .Debug) &alloc_api.allocator else alloc_api;
+    var allocator = if(is_debug) &alloc_api.allocator else alloc_api;
 
     var source_files = std.ArrayList([]const u8).initCapacity(allocator, file_paths.len) catch |err| {
         std_err.print("failed to initialize source path list, err: {any}", .{err}) catch {};
