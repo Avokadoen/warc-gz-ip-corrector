@@ -3,7 +3,6 @@ const testing = std.testing;
 
 const c = @import("c.zig");
 
-// TODO: define errors, print msg in case of error
 // Source: https://stackoverflow.com/a/57699371/11768869
 /// Utility wrapper for deflate with gzip specific configuartion
 pub fn compressGzip(source: []u8, buffer: []u8) !u64 {
@@ -59,8 +58,4 @@ pub fn compressGzip(source: []u8, buffer: []u8) !u64 {
     }
 
     return z_stream.total_out;
-}
-
-test "basic add functionality" {
-    try testing.expect(add(3, 7) == 10);
 }
