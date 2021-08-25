@@ -16,7 +16,7 @@ pub fn main() anyerror!void {
         clap.parseParam("-h, --help                     Display this help and exit.                     ") catch unreachable,
         clap.parseParam("-f, --file        <STR>...     Paths to a file that should be corrected        ") catch unreachable,
         clap.parseParam("-d, --directory   <STR>...     Paths to a directory that should be corrected   ") catch unreachable,
-        clap.parseParam("-o, --output <STR>             Folder where fixed files should be stored       ") catch unreachable,
+        clap.parseParam("-o, --output      <STR>        Folder where fixed files should be stored       ") catch unreachable,
     };
 
     // Initalize our diagnostics, which can be used for reporting useful errors.
@@ -228,8 +228,9 @@ fn fixWarcIP(ctx: AsyncContext) void {
 
         // Search record for WARC-IP-Address and replace port with whitespace if it exist
         const needle = "WARC-IP-Address: ";
+        var bytes_in_use = bytes_read;
         var needle_search_start: usize = 0;
-        header_search: while (std.mem.indexOf(u8, file_read_buffer.items[needle_search_start..bytes_read], needle)) |index| {
+        header_search: while (std.mem.indexOf(u8, file_read_buffer.items[needle_search_start..bytes_in_use], needle)) |index| {
             if (index == 0) {
                 break :header_search;
             }
@@ -239,22 +240,31 @@ fn fixWarcIP(ctx: AsyncContext) void {
             };
             var state = SearchState.IP;
 
-            // skip "WARC-IP-Address: "
-            const port_start_index = index + needle.len;
+            // skip "WARC-IP-Address: " from port search
+            const ip_start_index = index + needle.len;
             var i: usize = 0;
-            port_search: while(file_read_buffer.items[port_start_index+i] != '\n' and file_read_buffer.items[port_start_index+i] != '\r') : (i += 1) {
-                if (file_read_buffer.items[port_start_index+i] == ':') {
+            port_search: while(file_read_buffer.items[ip_start_index+i] != '\n' and file_read_buffer.items[ip_start_index+i] != '\r') : (i += 1) {
+                if (file_read_buffer.items[ip_start_index+i] == ':') {
                     state = SearchState.Port;
                     break :port_search;
                 }
             }
             // replace port in buffer to whitespace if it exist
             if (state == SearchState.Port) {
-                while(file_read_buffer.items[port_start_index+i] != '\n' and file_read_buffer.items[port_start_index+i] != '\r') : (i += 1) {
-                    file_read_buffer.items[port_start_index+i] = ' ';
-                } 
+                const port_start_index = ip_start_index + i;
+                // find range between port begining and newline character
+                const new_line_offset = std.mem.indexOf(u8, file_read_buffer.items[port_start_index..], "\n") orelse file_read_buffer.items.len;
+                const carriage_return_offset = std.mem.indexOf(u8, file_read_buffer.items[port_start_index..], "\r") orelse file_read_buffer.items.len;
+                const min_offset = std.math.min(new_line_offset, carriage_return_offset);
+
+                // shift the whole buffer to replace port characters, a slow operation :(
+                std.mem.copy(u8, file_read_buffer.items[port_start_index..], file_read_buffer.items[port_start_index+min_offset..]);
+
+                // remove discared bytes from the program state
+                file_read_buffer.items.len -= min_offset;
+                bytes_in_use -= min_offset; 
             } 
-            needle_search_start = port_start_index + i + 1;
+            needle_search_start = ip_start_index + i + 1;
         }
 
         file_write_buffer.items.len = file_write_buffer.capacity;
