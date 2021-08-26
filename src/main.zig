@@ -205,7 +205,11 @@ fn fixWarcIP(ctx: AsyncContext) void {
         read_gzip: while (true) {
             file_read_buffer.items.len = file_read_buffer.capacity;
             const new_bytes_read = gzip_stream.read(file_read_buffer.items[bytes_read..]) catch |err| {
-                ctx.std_err.print("failed to read gzip stream at {d}, err: {any}", .{gzip_stream.read_amt, err}) catch {};
+                ctx.std_err.print("failed to read gzip stream from file {s} at {d}, err: {any}", .{
+                    ctx.path,
+                    file_pos + gzip_stream.read_amt, 
+                    err
+                }) catch {};
                 return;
             };
             bytes_read += new_bytes_read;
